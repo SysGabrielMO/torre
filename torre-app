@@ -1,0 +1,44 @@
+#!/bin/bash
+# Abre Torre como aplicación, en su propia ventana.
+# (Para usarlo en el navegador: ./run.sh)
+set -euo pipefail
+cd "$(dirname "$(realpath "$0")")"
+source scripts/env.sh
+
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/torre"
+notify() { notify-send -a Torre -i "$PWD/torre/static/icon.svg" "$@" 2>/dev/null || true; }
+
+# Abierto desde el menú no hay terminal: la salida va a un log y los errores
+# se avisan con una notificación del escritorio
+if [[ ! -t 1 ]]; then
+    log="$cache/torre.log"
+    mkdir -p "$cache"
+    exec >>"$log" 2>&1
+    echo "--- $(date '+%F %T')"
+    fail() {
+        echo "Error: $*"
+        notify -u critical "Torre no ha podido arrancar" "$* · Detalles en $log"
+        exit 1
+    }
+    if [[ ! -x .venv/bin/python ]] || ! .venv/bin/python -c "import PySide6" 2>/dev/null; then
+        notify "Preparando Torre" "La primera vez se descargan unos 700 MB; tardará unos minutos."
+    fi
+fi
+
+prepare_env requirements.txt requirements-desktop.txt
+
+gpu=$(.venv/bin/python -c "from torre.desktop import use_gpu; print(int(use_gpu()))")
+code=0
+.venv/bin/python -m torre.desktop "$@" || code=$?
+
+# Muerte por una señal que no es de cierre normal (Ctrl+C = 130, kill = 143):
+# si tenía la GPU activa, se apunta y se vuelve a abrir sin ella
+if (( code > 128 && code != 130 && code != 143 )) && [[ "$gpu" == 1 && -z "${TORRE_GPU:-}" ]]; then
+    echo "Torre se cerró de golpe (código $code) con la GPU activa: se abre sin ella."
+    mkdir -p "$cache"
+    touch "$cache/no-gpu"
+    notify "Torre se ha reabierto sin aceleración gráfica" \
+        "Se cerró de golpe usando la GPU. Para volver a probarla: rm $cache/no-gpu"
+    exec .venv/bin/python -m torre.desktop "$@"
+fi
+exit "$code"

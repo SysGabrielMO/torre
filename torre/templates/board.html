@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ board.name }} · Torre{% endblock %}
+{% block body_class %}board-page c-{{ board.color }}{% endblock %}
+{% block crumbs %}
+<span class="sep">/</span>
+<h1 class="board-title" id="board-title" contenteditable="plaintext-only" spellcheck="false" title="Clic para renombrar">{{ board.name }}</h1>
+<div class="board-tools">
+  <button class="btn ghost" id="filter-btn" title="Filtrar por etiqueta">Filtrar</button>
+  <button class="btn ghost" id="menu-btn">Menú</button>
+</div>
+{% endblock %}
+{% block main %}
+<div class="board" id="board" data-board="{{ board.id }}" data-colors='{{ color_names.items() | list | tojson }}'></div>
+
+<aside class="drawer" id="drawer" hidden>
+  <header><h2>Menú del tablero</h2><button class="icon-btn" data-close aria-label="Cerrar">✕</button></header>
+  <section>
+    <h3>Color</h3>
+    <div class="swatches" id="board-colors"></div>
+  </section>
+  <section>
+    <h3>Etiquetas</h3>
+    <ul class="label-editor" id="label-editor"></ul>
+    <form id="new-label" class="row">
+      <input name="name" placeholder="Nueva etiqueta" maxlength="40" aria-label="Nombre de la etiqueta">
+      <select name="color" aria-label="Color">{% for c, n in color_names.items() %}<option value="{{ c }}">{{ n }}</option>{% endfor %}</select>
+      <button class="btn small">Añadir</button>
+    </form>
+  </section>
+  <section>
+    <h3>Archivo</h3>
+    <div id="archive"></div>
+  </section>
+  <section class="danger-zone">
+    <button class="btn" id="archive-board">Archivar tablero</button>
+  </section>
+</aside>
+
+<div class="filter-pop" id="filter-pop" hidden></div>
+
+<dialog class="card-modal" id="card-modal">
+  <div class="modal-inner" id="modal-inner"></div>
+</dialog>
+{% endblock %}
+{% block scripts %}<script src="{{ static('board.js') }}"></script>{% endblock %}

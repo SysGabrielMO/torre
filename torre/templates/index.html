@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block main %}
+<section class="home">
+  <h1>Tus tableros</h1>
+  <div class="board-grid">
+    {% for b in boards %}
+    <a class="board-tile c-{{ b.color }}" href="/b/{{ b.id }}">
+      <span class="tile-name">{{ b.name }}</span>
+      <span class="tile-meta">{{ b.cards }} tarjeta{{ "" if b.cards == 1 else "s" }}</span>
+    </a>
+    {% endfor %}
+    <form class="board-tile new-board" id="new-board">
+      <input name="name" placeholder="Nuevo tablero…" maxlength="100" required aria-label="Nombre del nuevo tablero">
+      <div class="swatches">
+        {% for c in colors %}<label class="swatch c-{{ c }}" title="{{ color_names[c] }}"><input type="radio" name="color" value="{{ c }}" {{ "checked" if loop.first }} aria-label="{{ color_names[c] }}"></label>{% endfor %}
+      </div>
+      <button class="btn primary">Crear tablero</button>
+    </form>
+  </div>
+  {% if not boards %}<p class="hint">Crea tu primer tablero: empezará con las listas «Por hacer», «En progreso» y «Hecho».</p>{% endif %}
+
+  {% if archived %}
+  <h2>Archivados</h2>
+  <ul class="archived-boards">
+    {% for b in archived %}
+    <li><span class="dot c-{{ b.color }}"></span>{{ b.name }}
+      <button class="btn small" data-restore="{{ b.id }}">Restaurar</button>
+      <button class="btn small danger" data-delete="{{ b.id }}" data-name="{{ b.name }}">Borrar</button></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ static('home.js') }}"></script>{% endblock %}

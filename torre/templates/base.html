@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es"{% if theme != "auto" %} data-theme="{{ theme }}"{% endif %}>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Torre{% endblock %}</title>
+  <link rel="icon" href="{{ static('icon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ static('style.css') }}">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+<header class="topbar">
+  <a href="/" class="brand"><img src="{{ static('icon.svg') }}" alt="" width="26" height="26">Torre</a>
+  {% block crumbs %}{% endblock %}
+  <div class="search">
+    <input type="search" id="search" placeholder="Buscar tarjetas…  ( / )" autocomplete="off" aria-label="Buscar tarjetas">
+    <div class="search-results" id="search-results" hidden></div>
+  </div>
+  <button class="icon-btn" id="theme-toggle" data-theme="{{ theme }}" title="Tema: automático / claro / oscuro">
+    <span class="t-auto">◐</span><span class="t-light">☀</span><span class="t-dark">☾</span>
+  </button>
+</header>
+<main>{% block main %}{% endblock %}</main>
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="{{ static('common.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
