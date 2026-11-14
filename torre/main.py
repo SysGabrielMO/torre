@@ -7,9 +7,13 @@ Se arranca con ./run.sh (navegador) o ./torre-app (ventana propia).
 """
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import os
 import re
 import secrets
+from contextlib import asynccontextmanager
+from datetime import date
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -20,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
 
-from . import db
+from . import background, db
 
 BASE = Path(__file__).resolve().parent
 
@@ -30,7 +34,18 @@ ACCESS_TOKEN = os.environ.get("TORRE_TOKEN", "")
 TOKEN_COOKIE = "torre_token"
 ALLOWED_HOSTS = {"127.0.0.1", "localhost"}
 
-app = FastAPI(title="Torre", docs_url=None, redoc_url=None, openapi_url=None)
+@asynccontextmanager
+async def lifespan(_app):
+    """Copias diarias y avisos de fechas mientras el servidor está en marcha."""
+    task = None if os.environ.get("TORRE_NO_BACKGROUND") else asyncio.create_task(background.loop())
+    yield
+    if task:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
+app = FastAPI(title="Torre", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=BASE / "templates")
 
@@ -103,10 +118,16 @@ def render_markdown(text: str) -> str:
 @app.get("/")
 def index(request: Request):
     boards = db.list_boards()
+    backups = background.list_backups()
     return templates.TemplateResponse(request, "index.html", {
         "theme": db.get_theme(),
         "boards": [b for b in boards if not b["archived"]],
         "archived": [b for b in boards if b["archived"]],
+        "last_backup": backups[0] if backups else None,
+        "backup_count": len(backups),
+        "backup_dir": str(background.backup_dir()).replace(str(Path.home()), "~", 1),
+        "reminders": db.reminders_enabled(),
+        "today": date.today(),
     })
 
 
@@ -424,3 +445,32 @@ def api_search(q: str = ""):
 def api_theme(body: ThemeIn):
     db.set_theme(body.theme)
     return OK
+
+
+class RemindersIn(Model):
+    enabled: bool
+
+
+@app.put("/api/settings/reminders")
+def api_reminders(body: RemindersIn):
+    db.set_setting("reminders", "1" if body.enabled else "0")
+    return OK
+
+
+@app.post("/api/reminders/test")
+def api_reminders_test():
+    """«Probar aviso»: muestra ya lo pendiente (o un aviso de ejemplo)."""
+    if background.check_reminders(force=True):
+        return {"shown": "pending"}
+    if background.notify("Torre: los avisos funcionan",
+                         "Ahora mismo no tienes tarjetas vencidas ni para hoy o mañana."):
+        return {"shown": "sample"}
+    raise HTTPException(503, "No se pudo mostrar la notificación (¿está instalado libnotify-bin?).")
+
+
+@app.post("/api/backup")
+def api_backup():
+    path = background.make_backup(force=True)
+    if path is None:
+        raise HTTPException(409, "Todavía no hay datos que copiar.")
+    return {"path": str(path)}

@@ -19,6 +19,30 @@
   </div>
   {% if not boards %}<p class="hint">Crea tu primer tablero: empezará con las listas «Por hacer», «En progreso» y «Hecho».</p>{% endif %}
 
+  <h2>Ajustes</h2>
+  <div class="settings">
+    <div class="setting">
+      <div>
+        <strong>Copia de seguridad</strong>
+        <p class="hint">
+          {% if last_backup %}Última: {{ "hoy" if last_backup.day == today else last_backup.day.strftime("%d/%m/%Y") }}
+          a las {{ last_backup.modified.strftime("%H:%M") }} · {{ backup_count }} guardada{{ "" if backup_count == 1 else "s" }}
+          {% else %}Aún no hay ninguna{% endif %}
+          en <code>{{ backup_dir }}</code>. Se hace una al día y se guardan las últimas 14.
+        </p>
+      </div>
+      <button class="btn" id="backup-now">Hacer copia ahora</button>
+    </div>
+    <div class="setting">
+      <label class="switch-row">
+        <input type="checkbox" id="reminders" {{ "checked" if reminders }}>
+        <span><strong>Avisos de fechas límite</strong>
+          <span class="hint">Una notificación al día si tienes tarjetas vencidas, para hoy o para mañana.</span></span>
+      </label>
+      <button class="btn" id="test-reminder">Probar aviso</button>
+    </div>
+  </div>
+
   {% if archived %}
   <h2>Archivados</h2>
   <ul class="archived-boards">

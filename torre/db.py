@@ -144,16 +144,42 @@ def _place(con, table: str, parent: str, parent_id: int, row_id: int, index: int
 
 # --- Ajustes -------------------------------------------------------------------
 
-def get_theme() -> str:
+def get_setting(key: str, default: str = "") -> str:
     with tx() as con:
-        row = con.execute("SELECT value FROM settings WHERE key = 'theme'").fetchone()
-    return row["value"] if row and row["value"] in THEMES else "auto"
+        row = con.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else default
+
+
+def set_setting(key: str, value: str) -> None:
+    with tx() as con:
+        con.execute("INSERT INTO settings (key, value) VALUES (?, ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value))
+
+
+def get_theme() -> str:
+    theme = get_setting("theme", "auto")
+    return theme if theme in THEMES else "auto"
 
 
 def set_theme(theme: str) -> None:
+    set_setting("theme", theme)
+
+
+def reminders_enabled() -> bool:
+    return get_setting("reminders", "1") == "1"
+
+
+def due_cards(until: str) -> list[dict]:
+    """Tarjetas pendientes (no hechas ni archivadas) con fecha hasta «until»
+    incluida, de las más atrasadas a las más lejanas."""
     with tx() as con:
-        con.execute("INSERT INTO settings (key, value) VALUES ('theme', ?) "
-                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (theme,))
+        rows = con.execute("""
+            SELECT c.id, c.title, c.due, b.id AS board_id, b.name AS board_name
+              FROM cards c JOIN lists l ON l.id = c.list_id JOIN boards b ON b.id = l.board_id
+             WHERE c.due IS NOT NULL AND c.due <= ? AND c.done = 0
+               AND c.archived = 0 AND l.archived = 0 AND b.archived = 0
+             ORDER BY c.due, c.title COLLATE NOCASE""", (until,)).fetchall()
+    return [dict(r) for r in rows]
 
 
 # --- Tableros ------------------------------------------------------------------

@@ -25,6 +25,10 @@ donde están las máquinas, Torre es la torre de control desde donde se organiza
 - **Buscar** tarjetas de todos los tableros (tecla `/`, flechas y Enter).
 - **Archivo**: en «Menú» del tablero se restaura lo archivado.
 - **Tema** automático (sigue al de Debian), claro u oscuro: el botón de arriba a la derecha.
+- **Copias de seguridad automáticas**, una al día (ver más abajo).
+- **Avisos de fechas límite**: una notificación del escritorio al día si tienes
+  tarjetas vencidas o que vencen hoy o mañana. Se activan o desactivan en
+  «Ajustes», en la portada, donde también está «Probar aviso».
 
 ## Instalar (Debian 13)
 
@@ -69,15 +73,21 @@ puerto: `PORT=9000 ./run.sh`.
 | `F11` | Ventana | Pantalla completa |
 | `Ctrl+W` / `Ctrl+Q` | Ventana | Cerrar |
 
-## Copia de seguridad
+## Copias de seguridad
 
-Todo está en `data/torre.db` (SQLite). Para copiarlo con la aplicación abierta:
+Mientras Torre está abierto, hace **una copia al día** de tus datos en
+`~/.local/share/torre/copias/` (fuera de la carpeta del proyecto, por si la
+borras) y guarda **las últimas 14**. En la portada, en «Ajustes», ves cuándo
+se hizo la última y puedes hacer una al momento con «Hacer copia ahora».
+
+**Para recuperar una copia:** cierra Torre y ejecuta, cambiando la fecha:
 
 ```bash
-sqlite3 data/torre.db ".backup '$HOME/torre-copia.db'"
+cd ~/prueba-organizador && rm -f data/torre.db-wal data/torre.db-shm && cp ~/.local/share/torre/copias/torre-2026-11-14.db data/torre.db
 ```
 
-Con la aplicación cerrada, basta con copiar la carpeta `data/`.
+Cada copia es un fichero SQLite completo; para guardarla en otro sitio (un
+USB, la nube) basta con copiar el fichero.
 
 ## Cómo está hecho
 
@@ -88,6 +98,7 @@ Con la aplicación cerrada, basta con copiar la carpeta `data/`.
 | Páginas (Jinja2) | `torre/templates/` |
 | Interfaz: tablero, arrastrar y soltar, detalle | `torre/static/board.js` |
 | Utilidades, buscador y tema | `torre/static/common.js` |
+| Copias diarias y avisos de fechas | `torre/background.py` |
 | Ventana de escritorio (PySide6 / Qt WebEngine) | `torre/desktop.py` |
 | Lanzadores | `torre-app`, `run.sh`, `scripts/` |
 

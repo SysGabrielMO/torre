@@ -6,6 +6,17 @@ from fastapi.testclient import TestClient
 def _db(tmp_path, monkeypatch):
     """Cada test con su propia base de datos vacía."""
     monkeypatch.setenv("TORRE_DB", str(tmp_path / "torre.db"))
+    monkeypatch.setenv("TORRE_BACKUP_DIR", str(tmp_path / "copias"))
+
+
+@pytest.fixture(autouse=True)
+def notifications(monkeypatch):
+    """Ningún test muestra notificaciones de verdad: se apuntan aquí."""
+    from torre import background
+    shown = []
+    monkeypatch.setattr(background, "notify", lambda title, body, urgent=False: shown.append(
+        {"title": title, "body": body, "urgent": urgent}) or True)
+    return shown
 
 
 @pytest.fixture

@@ -18,3 +18,23 @@ document.querySelectorAll("[data-delete]").forEach(btn => btn.addEventListener("
   await api("DELETE", `/api/boards/${btn.dataset.delete}`);
   location.reload();
 }));
+
+// --- Ajustes: copias y avisos ---------------------------------------------------
+document.getElementById("backup-now").addEventListener("click", async e => {
+  e.target.disabled = true;
+  try {
+    await api("POST", "/api/backup");
+    toast("Copia de seguridad hecha");
+    setTimeout(() => location.reload(), 900);
+  } finally { e.target.disabled = false; }
+});
+
+document.getElementById("reminders").addEventListener("change", async e => {
+  await api("PUT", "/api/settings/reminders", { enabled: e.target.checked });
+  toast(e.target.checked ? "Avisos activados" : "Avisos desactivados", { ms: 1500 });
+});
+
+document.getElementById("test-reminder").addEventListener("click", async () => {
+  const r = await api("POST", "/api/reminders/test");
+  toast(r.shown === "pending" ? "Aviso mostrado con tus tarjetas pendientes" : "Aviso de prueba mostrado");
+});
