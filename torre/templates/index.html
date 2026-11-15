@@ -37,7 +37,12 @@
       <label class="switch-row">
         <input type="checkbox" id="reminders" {{ "checked" if reminders }}>
         <span><strong>Avisos de fechas límite</strong>
-          <span class="hint">Una notificación al día si tienes tarjetas vencidas, para hoy o para mañana.</span></span>
+          <span class="hint">Una notificación al día si tienes tarjetas vencidas, para hoy o para mañana.</span>
+          <span class="hint">
+            {% if daily.active %}<span class="status ok">●</span> Cada día a las {{ daily.hour }}, aunque Torre esté cerrado (o al entrar en la sesión si el portátil estaba apagado).
+            {% elif daily.hour %}<span class="status warn">●</span> El aviso diario con Torre cerrado está instalado pero parado: <code>systemctl --user enable --now torre-diario.timer</code>
+            {% else %}<span class="status warn">●</span> Solo mientras Torre está abierto. Para recibirlo también con Torre cerrado: <code>./scripts/install-desktop.sh</code>{% endif %}
+          </span></span>
       </label>
       <button class="btn" id="test-reminder">Probar aviso</button>
     </div>

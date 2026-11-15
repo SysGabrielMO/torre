@@ -7,6 +7,8 @@ def _db(tmp_path, monkeypatch):
     """Cada test con su propia base de datos vacía."""
     monkeypatch.setenv("TORRE_DB", str(tmp_path / "torre.db"))
     monkeypatch.setenv("TORRE_BACKUP_DIR", str(tmp_path / "copias"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
 
 
 @pytest.fixture(autouse=True)

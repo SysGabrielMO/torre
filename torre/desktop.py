@@ -99,6 +99,8 @@ def main() -> int:
     from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox
 
     server = _start_server(port, token)   # antes de Qt: menos hilos al lanzar el hijo
+    from .instance import hold
+    lock = hold()   # noqa: F841 — que el aviso diario sepa que la ventana está abierta
 
     app = QApplication(sys.argv)
     app.setApplicationName("Torre")

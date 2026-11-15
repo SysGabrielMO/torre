@@ -127,6 +127,7 @@ def index(request: Request):
         "backup_count": len(backups),
         "backup_dir": str(background.backup_dir()).replace(str(Path.home()), "~", 1),
         "reminders": db.reminders_enabled(),
+        "daily": background.daily_timer(),
         "today": date.today(),
     })
 

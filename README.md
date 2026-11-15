@@ -27,8 +27,9 @@ donde están las máquinas, Torre es la torre de control desde donde se organiza
 - **Tema** automático (sigue al de Debian), claro u oscuro: el botón de arriba a la derecha.
 - **Copias de seguridad automáticas**, una al día (ver más abajo).
 - **Avisos de fechas límite**: una notificación del escritorio al día si tienes
-  tarjetas vencidas o que vencen hoy o mañana. Se activan o desactivan en
-  «Ajustes», en la portada, donde también está «Probar aviso».
+  tarjetas vencidas o que vencen hoy o mañana, **aunque Torre esté cerrado**
+  (ver más abajo). Se activan o desactivan en «Ajustes», en la portada, donde
+  también está «Probar aviso».
 
 ## Instalar (Debian 13)
 
@@ -38,7 +39,8 @@ donde están las máquinas, Torre es la torre de control desde donde se organiza
 sudo apt install python3-venv libxcb-cursor0 libnotify-bin
 ```
 
-**2. Instala la aplicación** (con tu usuario, sin sudo):
+**2. Instala la aplicación** (con tu usuario, sin sudo). Crea el acceso del
+menú y programa el aviso diario:
 
 ```bash
 cd ~/prueba-organizador && ./scripts/install-desktop.sh
@@ -49,8 +51,8 @@ Hangar instalado, suele salir de la caché de pip y tarda segundos.
 
 **3. Ábrela:** busca **Torre** en el menú de aplicaciones.
 
-Para quitarla del menú: `./scripts/install-desktop.sh --remove`. Tus datos
-siguen en `data/`.
+Para quitarla del menú y quitar el aviso diario:
+`./scripts/install-desktop.sh --remove`. Tus datos siguen en `data/`.
 
 ### En el navegador
 
@@ -72,6 +74,35 @@ puerto: `PORT=9000 ./run.sh`.
 | `F5` / `Ctrl+R` | Ventana | Recargar |
 | `F11` | Ventana | Pantalla completa |
 | `Ctrl+W` / `Ctrl+Q` | Ventana | Cerrar |
+
+## Aviso y copia diarios, con Torre cerrado
+
+El instalador programa un temporizador de systemd de tu usuario
+(`torre-diario.timer`, sin root) que cada día a las **9:00** hace la copia de
+seguridad y, si tienes tarjetas vencidas o para hoy o mañana, te avisa con una
+notificación con el botón **«Abrir Torre»**. Si a esa hora el portátil estaba
+apagado, lo hace al entrar en la sesión.
+
+- Nunca llegan dos avisos el mismo día: si Torre ya te avisó al abrirlo, el de
+  las 9:00 no sale (y al revés).
+- Con Torre ya abierto, el aviso no lleva botón: ya lo tienes delante.
+- En «Ajustes» ves si está activo y a qué hora.
+
+Para cambiar la hora (por ejemplo, a las 8:30):
+
+```bash
+TORRE_HORA=08:30 ./scripts/install-desktop.sh
+```
+
+Para probarlo ahora mismo, o ver qué hizo la última vez:
+
+```bash
+systemctl --user start torre-diario.service
+```
+
+```bash
+journalctl --user -u torre-diario.service -n 20
+```
 
 ## Copias de seguridad
 
@@ -99,6 +130,8 @@ USB, la nube) basta con copiar el fichero.
 | Interfaz: tablero, arrastrar y soltar, detalle | `torre/static/board.js` |
 | Utilidades, buscador y tema | `torre/static/common.js` |
 | Copias diarias y avisos de fechas | `torre/background.py` |
+| Aviso diario con Torre cerrado (lo lanza systemd) | `torre/daily.py` |
+| ¿Está la ventana abierta? | `torre/instance.py` |
 | Ventana de escritorio (PySide6 / Qt WebEngine) | `torre/desktop.py` |
 | Lanzadores | `torre-app`, `run.sh`, `scripts/` |
 

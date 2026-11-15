@@ -137,18 +137,29 @@ def notify(title: str, body: str, urgent: bool = False) -> bool:
         return False
 
 
-def check_reminders(today: date | None = None, force: bool = False) -> bool:
-    """Avisa si hay algo pendiente y aún no se avisó hoy. Devuelve si avisó."""
+def pending_reminder(today: date | None = None, force: bool = False) -> tuple[str, str, bool] | None:
+    """(título, cuerpo, urgente) del aviso de hoy, o None si no toca: avisos
+    desactivados, ya se avisó hoy o no hay nada pendiente. «force» ignora lo
+    de desactivados y ya avisado (para «Probar aviso»)."""
     today = today or date.today()
     if not force and (not db.reminders_enabled()
                       or db.get_setting("reminded_on") == today.isoformat()):
-        return False
+        return None
     cards = db.due_cards((today + timedelta(days=1)).isoformat())
     text = reminder_text(cards, today)
     if text is None:
+        return None
+    return *text, any(c["due"] < today.isoformat() for c in cards)
+
+
+def check_reminders(today: date | None = None, force: bool = False) -> bool:
+    """Avisa si hay algo pendiente y aún no se avisó hoy. Devuelve si avisó."""
+    today = today or date.today()
+    reminder = pending_reminder(today, force)
+    if reminder is None:
         return False
-    urgent = any(c["due"] < today.isoformat() for c in cards)
-    if notify(*text, urgent=urgent):
+    title, body, urgent = reminder
+    if notify(title, body, urgent=urgent):
         db.set_setting("reminded_on", today.isoformat())
         return True
     return False
@@ -169,3 +180,27 @@ async def loop() -> None:
     while True:
         await asyncio.to_thread(tick)
         await asyncio.sleep(INTERVAL)
+
+
+# --- Temporizador diario (systemd) --------------------------------------------------
+
+def timer_file() -> Path:
+    config = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    return config / "systemd" / "user" / "torre-diario.timer"
+
+
+def daily_timer() -> dict:
+    """Estado del aviso diario con Torre cerrado: si está activo y a qué hora."""
+    hour = None
+    try:
+        for line in timer_file().read_text().splitlines():
+            if line.startswith("OnCalendar="):
+                hour = line.rsplit(" ", 1)[-1][:5]   # "*-*-* 09:00:00" → "09:00"
+    except OSError:
+        return {"active": False, "hour": None}
+    try:
+        state = subprocess.run(["systemctl", "--user", "is-active", "torre-diario.timer"],
+                               capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        state = ""
+    return {"active": state == "active", "hour": hour}
