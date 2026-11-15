@@ -36,23 +36,32 @@ donde están las máquinas, Torre es la torre de control desde donde se organiza
 **1. Paquetes del sistema:**
 
 ```bash
-sudo apt install python3-venv libxcb-cursor0 libnotify-bin
+sudo apt install git python3-venv libxcb-cursor0 libnotify-bin
 ```
 
-**2. Instala la aplicación** (con tu usuario, sin sudo). Crea el acceso del
+**2. Descarga Torre:**
+
+```bash
+git clone https://github.com/SysGabrielMO/torre.git ~/torre && cd ~/torre
+```
+
+**3. Instala la aplicación** (con tu usuario, sin sudo). Crea el acceso del
 menú y programa el aviso diario:
 
 ```bash
-cd ~/prueba-organizador && ./scripts/install-desktop.sh
+./scripts/install-desktop.sh
 ```
 
 La primera vez descarga unos 700 MB (Qt WebEngine, la ventana). Si ya tienes
 Hangar instalado, suele salir de la caché de pip y tarda segundos.
 
-**3. Ábrela:** busca **Torre** en el menú de aplicaciones.
+**4. Ábrela:** busca **Torre** en el menú de aplicaciones.
 
 Para quitarla del menú y quitar el aviso diario:
 `./scripts/install-desktop.sh --remove`. Tus datos siguen en `data/`.
+
+Para **actualizar** a la última versión: `git pull` en la carpeta de Torre.
+Al abrirla de nuevo instala sola las dependencias que hayan cambiado.
 
 ### En el navegador
 
@@ -111,10 +120,11 @@ Mientras Torre está abierto, hace **una copia al día** de tus datos en
 borras) y guarda **las últimas 14**. En la portada, en «Ajustes», ves cuándo
 se hizo la última y puedes hacer una al momento con «Hacer copia ahora».
 
-**Para recuperar una copia:** cierra Torre y ejecuta, cambiando la fecha:
+**Para recuperar una copia:** cierra Torre y ejecuta, cambiando la fecha (y
+`~/torre` por tu carpeta de Torre, si la tienes en otro sitio):
 
 ```bash
-cd ~/prueba-organizador && rm -f data/torre.db-wal data/torre.db-shm && cp ~/.local/share/torre/copias/torre-2026-11-14.db data/torre.db
+cd ~/torre && rm -f data/torre.db-wal data/torre.db-shm && cp ~/.local/share/torre/copias/torre-2026-11-14.db data/torre.db
 ```
 
 Cada copia es un fichero SQLite completo; para guardarla en otro sitio (un
