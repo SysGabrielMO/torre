@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import os
 import re
 import secrets
@@ -24,7 +25,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
 
-from . import background, db
+from . import background, db, trello
 
 BASE = Path(__file__).resolve().parent
 
@@ -467,6 +468,28 @@ def api_reminders_test():
                          "Ahora mismo no tienes tarjetas vencidas ni para hoy o mañana."):
         return {"shown": "sample"}
     raise HTTPException(503, "No se pudo mostrar la notificación (¿está instalado libnotify-bin?).")
+
+
+MAX_IMPORT = 50 * 1024 * 1024   # 50 MB: los tableros de Trello más grandes rondan unos pocos MB
+
+
+@app.post("/api/import/trello", status_code=201)
+async def api_import_trello(request: Request):
+    """Recibe la exportación JSON de un tablero de Trello (tal cual, en el cuerpo)."""
+    if int(request.headers.get("content-length") or 0) > MAX_IMPORT:
+        raise HTTPException(413, "El fichero es demasiado grande (más de 50 MB).")
+    raw = await request.body()
+    if len(raw) > MAX_IMPORT:
+        raise HTTPException(413, "El fichero es demasiado grande (más de 50 MB).")
+    try:
+        data = json.loads(raw)
+    except (ValueError, UnicodeDecodeError):
+        raise HTTPException(422, "El fichero no es JSON. En Trello: menú del tablero → "
+                                 "«Imprimir, exportar y compartir» → «Exportar como JSON».")
+    try:
+        return await asyncio.to_thread(trello.import_board, data)
+    except trello.NotTrello as e:
+        raise HTTPException(422, str(e))
 
 
 @app.post("/api/backup")

@@ -25,6 +25,7 @@ donde están las máquinas, Torre es la torre de control desde donde se organiza
 - **Buscar** tarjetas de todos los tableros (tecla `/`, flechas y Enter).
 - **Archivo**: en «Menú» del tablero se restaura lo archivado.
 - **Tema** automático (sigue al de Debian), claro u oscuro: el botón de arriba a la derecha.
+- **Importar tableros de Trello** desde su exportación en JSON (ver más abajo).
 - **Copias de seguridad automáticas**, una al día (ver más abajo).
 - **Avisos de fechas límite**: una notificación del escritorio al día si tienes
   tarjetas vencidas o que vencen hoy o mañana, **aunque Torre esté cerrado**
@@ -84,6 +85,24 @@ puerto: `PORT=9000 ./run.sh`.
 | `F11` | Ventana | Pantalla completa |
 | `Ctrl+W` / `Ctrl+Q` | Ventana | Cerrar |
 
+## Importar de Trello
+
+1. En Trello, abre el tablero y entra en el menú **⋯** → **Imprimir, exportar
+   y compartir** → **Exportar como JSON**, y guarda el fichero.
+2. En la portada de Torre, pulsa **Importar de Trello** y elige el fichero
+   (o arrástralo). Puedes elegir varios a la vez, uno por tablero.
+
+Se traen las listas y tarjetas en su orden, las etiquetas (con el color más
+parecido), las checklists, las fechas límite y si estaban completadas, y lo
+archivado (llega archivado, y se restaura desde «Menú» del tablero). Los
+comentarios y los adjuntos (como enlaces) se añaden al final de la descripción
+de cada tarjeta. Si una tarjeta tenía varias checklists, se juntan en una y
+cada elemento lleva delante el nombre de la suya.
+
+Cada fichero crea un tablero nuevo, sin tocar nada de lo que ya tienes. Si el
+fichero está dañado, no se importa nada. Lo que no existe en Torre (miembros,
+portadas, campos personalizados, power-ups) se ignora.
+
 ## Aviso y copia diarios, con Torre cerrado
 
 El instalador programa un temporizador de systemd de tu usuario
@@ -142,6 +161,7 @@ USB, la nube) basta con copiar el fichero.
 | Copias diarias y avisos de fechas | `torre/background.py` |
 | Aviso diario con Torre cerrado (lo lanza systemd) | `torre/daily.py` |
 | ¿Está la ventana abierta? | `torre/instance.py` |
+| Importar de Trello | `torre/trello.py` |
 | Ventana de escritorio (PySide6 / Qt WebEngine) | `torre/desktop.py` |
 | Lanzadores | `torre-app`, `run.sh`, `scripts/` |
 

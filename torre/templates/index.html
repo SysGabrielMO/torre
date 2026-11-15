@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block main %}
 <section class="home">
-  <h1>Tus tableros</h1>
+  <div class="home-head">
+    <h1>Tus tableros</h1>
+    <button class="btn" id="import-btn">Importar de Trello</button>
+  </div>
   <div class="board-grid">
     {% for b in boards %}
     <a class="board-tile c-{{ b.color }}" href="/b/{{ b.id }}">
@@ -59,5 +62,28 @@
   </ul>
   {% endif %}
 </section>
+<dialog class="import-modal" id="import-modal">
+  <form method="dialog" class="import-inner" id="import-form">
+    <h2>Importar de Trello</h2>
+    <ol class="steps">
+      <li>En Trello, abre el tablero y entra en el menú <strong>⋯</strong>.</li>
+      <li>Elige <strong>Imprimir, exportar y compartir</strong> → <strong>Exportar como JSON</strong>
+        y guarda el fichero.</li>
+      <li>Selecciónalo aquí. Puedes elegir varios a la vez, uno por tablero.</li>
+    </ol>
+    <label class="file-drop" id="file-drop">
+      <input type="file" id="import-files" accept=".json,application/json" multiple>
+      <span id="file-label">Elige o arrastra aquí los ficheros .json</span>
+    </label>
+    <p class="hint">Se traen listas, tarjetas, etiquetas, checklists, fechas, lo archivado,
+      y los comentarios y adjuntos (como enlaces) al final de cada descripción.
+      Cada fichero crea un tablero nuevo: no se toca nada de lo que ya tienes.</p>
+    <ul class="import-results" id="import-results"></ul>
+    <div class="row end">
+      <button type="button" class="btn" id="import-cancel">Cerrar</button>
+      <button type="button" class="btn primary" id="import-go" disabled>Importar</button>
+    </div>
+  </form>
+</dialog>
 {% endblock %}
 {% block scripts %}<script src="{{ static('home.js') }}"></script>{% endblock %}
