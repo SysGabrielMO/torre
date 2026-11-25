@@ -4,6 +4,7 @@
     python -m torre.users contraseña NOMBRE  cambia la contraseña (cierra sus sesiones)
     python -m torre.users borrar NOMBRE      borra el usuario
     python -m torre.users lista              muestra los usuarios
+    python -m torre.users admin NOMBRE       le hace administrador
 
 En el servidor, dentro del contenedor:
 
@@ -23,6 +24,7 @@ COMMANDS = {
     "contraseña": "passwd", "contrasena": "passwd", "passwd": "passwd",
     "borrar": "del", "del": "del",
     "lista": "list", "list": "list",
+    "admin": "admin",
 }
 
 
@@ -41,7 +43,8 @@ def main(argv: list[str]) -> int:
     try:
         if command == "list":
             users = auth.list_users()
-            print("\n".join(users) if users else "No hay usuarios. Crea uno con: python -m torre.users añadir NOMBRE")
+            print("\n".join(f"{u['username']}{' (admin)' if u['is_admin'] else ''}"
+                            for u in auth.users_detail()) if users else "No hay usuarios. Crea uno con: python -m torre.users añadir NOMBRE")
         elif command == "add":
             name = auth.normalize_username(argv[1])
             auth.check_new_password(name, password := ask_password())
@@ -50,6 +53,9 @@ def main(argv: list[str]) -> int:
         elif command == "passwd":
             auth.set_password(argv[1], ask_password())
             print("Contraseña cambiada. Se han cerrado sus sesiones abiertas.")
+        elif command == "admin":
+            auth.set_admin(argv[1].strip().lower(), True)
+            print(f"«{argv[1]}» ya es administrador.")
         elif command == "del":
             auth.delete_user(argv[1])
             print(f"Usuario «{argv[1]}» borrado.")

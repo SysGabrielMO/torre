@@ -20,9 +20,13 @@
     <span class="t-auto">◐</span><span class="t-light">☀</span><span class="t-dark">☾</span>
   </button>
   {% if request.state.user %}
-  <form method="post" action="/logout" class="logout">
-    <button class="btn ghost small" title="Cerrar sesión de {{ request.state.user }}">{{ request.state.user }} · Salir</button>
-  </form>
+  <nav class="user-nav" aria-label="Tu cuenta">
+    {% if request.state.admin %}<a class="btn ghost small" href="/admin">Admin</a>{% endif %}
+    <a class="btn ghost small" href="/cuenta" title="Tu cuenta">{{ request.state.user }}</a>
+    <form method="post" action="/logout" class="logout">
+      <button class="btn ghost small" title="Cerrar sesión">Salir</button>
+    </form>
+  </nav>
   {% endif %}
 </header>
 {% endblock %}

@@ -7,7 +7,7 @@
   <form class="login-box" method="post" action="/login">
     <img src="{{ static('icon.svg') }}" alt="" width="56" height="56">
     <h1>Torre</h1>
-    {% if no_users %}
+    {% if no_users and not registration %}
     <p class="login-error">Todavía no hay ningún usuario. Créalo en el servidor con:</p>
     <pre>docker compose exec torre python -m torre.users añadir TU_USUARIO</pre>
     {% else %}
@@ -21,6 +21,7 @@
     </label>
     <input type="hidden" name="next" value="{{ next }}">
     <button class="btn primary">Entrar</button>
+    {% if registration %}<p class="login-alt">¿No tienes cuenta? <a href="/registro">Crear cuenta</a></p>{% endif %}
     {% endif %}
   </form>
 </section>

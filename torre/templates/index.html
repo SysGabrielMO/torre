@@ -9,7 +9,7 @@
     {% for b in boards %}
     <a class="board-tile c-{{ b.color }}" href="/b/{{ b.id }}">
       <span class="tile-name">{{ b.name }}</span>
-      <span class="tile-meta">{{ b.cards }} tarjeta{{ "" if b.cards == 1 else "s" }}</span>
+      <span class="tile-meta">{{ b.cards }} tarjeta{{ "" if b.cards == 1 else "s" }}{% if b.members %} · compartido con {{ b.members }}{% endif %}</span>
     </a>
     {% endfor %}
     <form class="board-tile new-board" id="new-board">
@@ -22,6 +22,19 @@
   </div>
   {% if not boards %}<p class="hint">Crea tu primer tablero: empezará con las listas «Por hacer», «En progreso» y «Hecho».</p>{% endif %}
 
+  {% if shared %}
+  <h2>Compartidos contigo</h2>
+  <div class="board-grid">
+    {% for b in shared %}
+    <a class="board-tile c-{{ b.color }}" href="/b/{{ b.id }}">
+      <span class="tile-name">{{ b.name }}</span>
+      <span class="tile-meta">de {{ b.owner }} · {{ b.cards }} tarjeta{{ "" if b.cards == 1 else "s" }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if show_settings %}
   <h2>Ajustes</h2>
   <div class="settings">
     <div class="setting">
@@ -52,6 +65,7 @@
     </div>
     {% endif %}
   </div>
+  {% endif %}
 
   {% if archived %}
   <h2>Archivados</h2>

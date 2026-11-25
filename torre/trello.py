@@ -89,18 +89,19 @@ def validate(data) -> None:
         raise NotTrello("El fichero no parece una exportación JSON de un tablero de Trello.")
 
 
-def import_board(data: dict) -> dict:
-    """Crea el tablero en Torre. Devuelve su id y un resumen de lo importado."""
+def import_board(data: dict, owner: str | None = None) -> dict:
+    """Crea el tablero en Torre (de «owner», en un servidor). Devuelve su id y
+    un resumen de lo importado."""
     validate(data)
     try:
-        return _import(data)
+        return _import(data, owner)
     except (AttributeError, TypeError, KeyError, ValueError) as e:
         # Algo con forma inesperada a medio camino: la transacción ya se deshizo
         raise NotTrello(f"El fichero de Trello está incompleto o dañado ({type(e).__name__}); "
                         "no se ha importado nada.") from e
 
 
-def _import(data: dict) -> dict:
+def _import(data: dict, owner: str | None) -> dict:
     prefs = data.get("prefs") or {}
     board_color = _color(prefs.get("background"), default="blue")
     board_name = _text(data.get("name"), LIMITS["board"], "Tablero de Trello")
@@ -117,8 +118,8 @@ def _import(data: dict) -> dict:
         checklists.setdefault(cl.get("idCard"), []).append(cl)
 
     with db.tx() as con:
-        board_id = con.execute("INSERT INTO boards (name, color, archived) VALUES (?, ?, ?)",
-                               (board_name, board_color, int(bool(data.get("closed"))))).lastrowid
+        board_id = con.execute("INSERT INTO boards (name, color, archived, owner) VALUES (?, ?, ?, ?)",
+                               (board_name, board_color, int(bool(data.get("closed"))), owner)).lastrowid
 
         labels = {}
         for lb in data.get("labels") or []:

@@ -20,7 +20,7 @@ document.querySelectorAll("[data-delete]").forEach(btn => btn.addEventListener("
 }));
 
 // --- Ajustes: copias y avisos ---------------------------------------------------
-document.getElementById("backup-now").addEventListener("click", async e => {
+document.getElementById("backup-now")?.addEventListener("click", async e => {
   e.target.disabled = true;
   try {
     await api("POST", "/api/backup");

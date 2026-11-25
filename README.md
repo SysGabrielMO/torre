@@ -149,18 +149,29 @@ cd ~/torre && rm -f data/torre.db-wal data/torre.db-shm && cp ~/.local/share/tor
 Cada copia es un fichero SQLite completo; para guardarla en otro sitio (un
 USB, la nube) basta con copiar el fichero.
 
-## Montarlo en un servidor (HTTPS y contraseña)
+## Montarlo en un servidor (HTTPS y varios usuarios)
 
-Torre también puede ir en un servidor, con acceso por Internet. Ahí funciona
-como web (sin ventana ni avisos del escritorio) y **pide usuario y
-contraseña**. La imagen de Docker ya viene preparada para eso:
+Torre también puede ir en un servidor, con acceso por Internet y **varios
+usuarios**. Ahí funciona como web (sin ventana ni avisos del escritorio). La
+imagen de Docker ya viene preparada para eso:
 
-- Contraseñas guardadas con scrypt, nunca en claro. Sin registro desde la web:
-  los usuarios se crean con un comando.
-- Sesiones de 30 días en una cookie `HttpOnly` y `Secure`, que se pueden cerrar
-  con «Salir». Cambiar la contraseña cierra todas las sesiones de ese usuario.
-- Tras 5 intentos fallidos desde una IP (o 10 contra un mismo usuario) en 15
-  minutos, se bloquea 15 minutos. Los fallos quedan en el log del contenedor.
+- **Cada uno se crea su cuenta** desde «Crear cuenta» en la página de
+  entrada. La primera cuenta es la del **administrador**.
+- **Cada uno ve solo sus tableros** y los que le compartan. El dueño de un
+  tablero lo comparte desde «Menú» → «Compartir»: quien tenga acceso puede
+  editar listas, tarjetas y etiquetas; solo el dueño puede renombrarlo,
+  cambiar su color, compartirlo, archivarlo o borrarlo.
+- **Contraseñas** guardadas con scrypt: nadie puede verlas, tampoco el
+  administrador. Cada uno cambia la suya en su cuenta; si alguien la olvida,
+  el administrador le da una temporal que tendrá que cambiar al entrar.
+- **Administración** (`/admin`): cerrar o abrir el registro, ver los usuarios,
+  hacer administrador a otro, dar contraseñas temporales y borrar cuentas.
+- **Contra abusos**: como mucho 3 cuentas nuevas por IP y hora, un campo
+  trampa para bots y un tope de usuarios (`TORRE_MAX_USERS`, 50 por defecto).
+  Tras 5 intentos de entrada fallidos desde una IP (o 10 contra un mismo
+  usuario) en 15 minutos, se bloquea 15 minutos.
+- Sesiones de 30 días en una cookie `HttpOnly` y `Secure`. Cambiar la
+  contraseña cierra las demás sesiones.
 - Solo responde a los nombres de `TORRE_ALLOWED_HOSTS` y rechaza escrituras
   que vengan de otras webs.
 - Copia de seguridad diaria dentro del volumen (`/data/copias`).
@@ -186,17 +197,23 @@ Y en `docker-compose.yml` (el puerto 8000 no se publica: solo Caddy llega a él)
       - torre_data:/data
 ```
 
-Arráncalo y crea tu usuario:
+Arráncalo y entra en `https://torre.midominio.com` → «Crear cuenta»: la
+primera es la del administrador.
 
 ```bash
 docker compose up -d --build torre
 ```
 
-```bash
-docker compose exec torre python -m torre.users añadir TU_USUARIO
-```
+También desde la línea de comandos: `docker compose exec torre python -m torre.users`
+(`añadir`, `contraseña`, `admin`, `lista` y `borrar`).
 
-Otros: `torre.users contraseña NOMBRE`, `torre.users lista` y `torre.users borrar NOMBRE`.
+Para pasar al servidor los tableros de un Torre de escritorio (se quedan a
+nombre del usuario que digas, sin tocar lo que ya haya):
+
+```bash
+docker compose cp torre-portatil.db torre:/tmp/origen.db
+docker compose exec torre python -m torre.transfer /tmp/origen.db TU_USUARIO
+```
 Para actualizar: `git pull` en la carpeta `torre` y otra vez `docker compose up -d --build torre`.
 
 ## Cómo está hecho
@@ -213,6 +230,7 @@ Para actualizar: `git pull` en la carpeta `torre` y otra vez `docker compose up 
 | ¿Está la ventana abierta? | `torre/instance.py` |
 | Importar de Trello | `torre/trello.py` |
 | Usuarios, contraseñas y sesiones (servidor) | `torre/auth.py`, `torre/users.py` |
+| Pasar tableros de otro Torre | `torre/transfer.py` |
 | Imagen para servidor | `Dockerfile` |
 | Ventana de escritorio (PySide6 / Qt WebEngine) | `torre/desktop.py` |
 | Lanzadores | `torre-app`, `run.sh`, `scripts/` |

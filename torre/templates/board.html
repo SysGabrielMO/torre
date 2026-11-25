@@ -3,21 +3,34 @@
 {% block body_class %}board-page c-{{ board.color }}{% endblock %}
 {% block crumbs %}
 <span class="sep">/</span>
+{% if role == "owner" %}
 <h1 class="board-title" id="board-title" contenteditable="plaintext-only" spellcheck="false" title="Clic para renombrar">{{ board.name }}</h1>
+{% else %}
+<h1 class="board-title" id="board-title" title="Tablero de {{ board.owner }}">{{ board.name }}</h1>
+<span class="shared-badge" title="Te lo ha compartido {{ board.owner }}">de {{ board.owner }}</span>
+{% endif %}
 <div class="board-tools">
   <button class="btn ghost" id="filter-btn" title="Filtrar por etiqueta">Filtrar</button>
   <button class="btn ghost" id="menu-btn">Menú</button>
 </div>
 {% endblock %}
 {% block main %}
-<div class="board" id="board" data-board="{{ board.id }}" data-colors='{{ color_names.items() | list | tojson }}'></div>
+<div class="board" id="board" data-board="{{ board.id }}" data-role="{{ role }}" data-me="{{ request.state.user or '' }}" data-colors='{{ color_names.items() | list | tojson }}'></div>
 
 <aside class="drawer" id="drawer" hidden>
   <header><h2>Menú del tablero</h2><button class="icon-btn" data-close aria-label="Cerrar">✕</button></header>
+  {% if request.state.user %}
+  <section>
+    <h3>Compartir</h3>
+    <div id="sharing"></div>
+  </section>
+  {% endif %}
+  {% if role == "owner" %}
   <section>
     <h3>Color</h3>
     <div class="swatches" id="board-colors"></div>
   </section>
+  {% endif %}
   <section>
     <h3>Etiquetas</h3>
     <ul class="label-editor" id="label-editor"></ul>
@@ -31,9 +44,11 @@
     <h3>Archivo</h3>
     <div id="archive"></div>
   </section>
+  {% if role == "owner" %}
   <section class="danger-zone">
     <button class="btn" id="archive-board">Archivar tablero</button>
   </section>
+  {% endif %}
 </aside>
 
 <div class="filter-pop" id="filter-pop" hidden></div>

@@ -72,8 +72,12 @@ def test_cli(monkeypatch, capsys):
     assert users.main(["contraseña", "gabriel"]) == 1
     assert "no coinciden" in capsys.readouterr().err
 
-    assert users.main(["lista"]) == 0 and "gabriel" in capsys.readouterr().out
-    assert users.main(["borrar", "gabriel"]) == 0 and auth.list_users() == []
+    assert users.main(["lista"]) == 0 and "gabriel (admin)" in capsys.readouterr().out
+    assert users.main(["borrar", "gabriel"]) == 1                 # el único administrador
+    assert "único administrador" in capsys.readouterr().err
+    auth.create_user("luis", PASSWORD)
+    assert users.main(["admin", "luis"]) == 0 and auth.is_admin("luis")
+    assert users.main(["borrar", "gabriel"]) == 0 and auth.list_users() == ["luis"]
     assert users.main(["inventado"]) == 2
 
 
@@ -91,6 +95,8 @@ def test_everything_needs_login(server, gabriel):
 
 
 def test_login_page_without_users(server):
+    assert "Crear cuenta" in server.get("/login").text
+    auth.set_registration(False)
     assert "Todavía no hay ningún usuario" in server.get("/login").text
 
 
@@ -102,7 +108,7 @@ def test_login_and_logout(server, gabriel):
     assert "secure" not in cookie                     # por http (solo pruebas); por https, sí
 
     assert server.get("/").status_code == 200
-    assert "gabriel · Salir" in server.get("/").text
+    assert 'href="/cuenta"' in server.get("/").text and ">Salir<" in server.get("/").text
     assert server.post("/api/boards", json={"name": "Casa"}).status_code == 201
 
     token = server.cookies.get("torre_session")

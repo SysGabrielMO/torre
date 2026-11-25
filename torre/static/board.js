@@ -3,6 +3,8 @@
 
 const boardEl = document.getElementById("board");
 const BOARD_ID = Number(boardEl.dataset.board);
+const ROLE = boardEl.dataset.role;          // «owner» o «member» (compartido conmigo)
+const ME = boardEl.dataset.me;              // usuario (vacío en el portátil)
 const COLOR_PAIRS = JSON.parse(boardEl.dataset.colors);   // [["blue", "Azul"], …] en orden
 const COLOR_NAMES = Object.fromEntries(COLOR_PAIRS);
 const COLORS = COLOR_PAIRS.map(([c]) => c);
@@ -376,14 +378,15 @@ document.getElementById("menu-btn").addEventListener("click", () => {
 });
 drawer.querySelector("[data-close]").addEventListener("click", () => { drawer.hidden = true; });
 
-editable(document.getElementById("board-title"), async value => {
+if (ROLE === "owner") editable(document.getElementById("board-title"), async value => {
   await api("PATCH", `/api/boards/${BOARD_ID}`, { name: value });
   document.title = `${value} · Torre`;
 });
 
 async function renderDrawer() {
+  renderSharing();
   const colorsBox = document.getElementById("board-colors");
-  colorsBox.replaceChildren(...COLORS.map(c => el("button", {
+  if (colorsBox) colorsBox.replaceChildren(...COLORS.map(c => el("button", {
     class: `swatch c-${c}${board.color === c ? " active" : ""}`, title: COLOR_NAMES[c], "aria-label": COLOR_NAMES[c],
     onclick: async () => {
       await api("PATCH", `/api/boards/${BOARD_ID}`, { color: c });
@@ -431,6 +434,53 @@ async function renderDrawer() {
     ...(!archive.lists.length && !archive.cards.length ? [el("p", { class: "hint" }, "No hay nada archivado.")] : []));
 }
 
+// --- Compartir (solo en un servidor, con usuarios) ----------------------------------
+async function renderSharing() {
+  const box = document.getElementById("sharing");
+  if (!box) return;
+  const info = await api("GET", `/api/boards/${BOARD_ID}/members`);
+  const person = (name, removable, label) => el("li", {},
+    el("span", { class: "avatar", "aria-hidden": "true" }, name[0].toUpperCase()),
+    el("span", { class: "who" }, name, label ? el("small", {}, ` · ${label}`) : null),
+    removable ? el("button", { class: "icon-btn", title: `Quitar a ${name}`, "aria-label": `Quitar a ${name}`,
+      onclick: async () => {
+        if (!confirm(`¿Dejar de compartir «${board.name}» con ${name}?`)) return;
+        await api("DELETE", `/api/boards/${BOARD_ID}/members/${encodeURIComponent(name)}`);
+        renderSharing();
+      } }, "✕") : null);
+  const list = el("ul", { class: "people" },
+    person(info.owner, false, info.owner === ME ? "dueño (tú)" : "dueño"),
+    info.members.map(m => person(m, ROLE === "owner", m === ME ? "tú" : "")));
+
+  if (ROLE !== "owner") {
+    box.replaceChildren(list,
+      el("p", { class: "hint" }, "Puedes editar todo su contenido. Solo el dueño puede renombrarlo, cambiar su color, compartirlo o archivarlo."),
+      el("button", { class: "btn", onclick: async () => {
+        if (!confirm(`¿Salir de «${board.name}»? Dejarás de verlo hasta que ${info.owner} te lo vuelva a compartir.`)) return;
+        await api("DELETE", `/api/boards/${BOARD_ID}/members/${encodeURIComponent(ME)}`);
+        location.href = "/";
+      } }, "Salir del tablero"));
+    return;
+  }
+  const users = await api("GET", "/api/users");
+  const available = users.filter(u => u !== info.owner && !info.members.includes(u));
+  const input = el("input", { list: "share-users", placeholder: "Usuario con quien compartir", maxlength: "64",
+    autocomplete: "off", autocapitalize: "none", spellcheck: "false", "aria-label": "Usuario con quien compartir" });
+  const form = el("form", { class: "row", onsubmit: async e => {
+    e.preventDefault();
+    const name = input.value.trim().toLowerCase();
+    if (!name) return;
+    await api("POST", `/api/boards/${BOARD_ID}/members`, { username: name });
+    toast(`Compartido con ${name}`, { ms: 2000 });
+    renderSharing();
+  } }, input, el("button", { class: "btn small" }, "Compartir"));
+  box.replaceChildren(list, form,
+    el("datalist", { id: "share-users" }, available.map(u => el("option", { value: u }))),
+    el("p", { class: "hint" }, info.members.length
+      ? "Quien tenga acceso puede editar listas, tarjetas y etiquetas."
+      : "Solo tú ves este tablero. Compártelo para que otros puedan verlo y editarlo."));
+}
+
 document.getElementById("new-label").addEventListener("submit", async e => {
   e.preventDefault();
   const form = new FormData(e.target);
@@ -439,7 +489,7 @@ document.getElementById("new-label").addEventListener("submit", async e => {
   await refresh(); renderDrawer();
 });
 
-document.getElementById("archive-board").addEventListener("click", async () => {
+document.getElementById("archive-board")?.addEventListener("click", async () => {
   if (!confirm("¿Archivar este tablero? Podrás restaurarlo desde la página de inicio.")) return;
   await api("PATCH", `/api/boards/${BOARD_ID}`, { archived: true });
   location.href = "/";

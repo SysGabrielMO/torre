@@ -11,14 +11,22 @@ Torre no pide contraseña: solo responde a este equipo.
 - Intentos fallidos: tras 5 desde la misma IP (o 10 contra el mismo usuario)
   en 15 minutos, se bloquea durante 15 minutos.
 
-Los usuarios se crean desde la línea de comandos (python -m torre.users), no
-hay registro desde la web.
+Cuentas: cada persona se crea la suya desde la página de entrada («Crear
+cuenta»), si el registro está abierto. Contra bots y abusos: como mucho 3
+cuentas por IP y hora, un campo trampa invisible y un tope de usuarios
+(TORRE_MAX_USERS, 50 por defecto). El primer usuario es administrador: puede
+cerrar el registro, borrar cuentas y dar una contraseña temporal a quien la
+olvide (que tendrá que cambiarla al entrar). Nadie, tampoco el administrador,
+puede ver las contraseñas: solo se guarda su huella.
+
+También desde la línea de comandos: python -m torre.users
 """
 from __future__ import annotations
 
 import base64
 import hashlib
 import hmac
+import os
 import re
 import secrets
 import threading
@@ -92,38 +100,118 @@ def list_users() -> list[str]:
         return [r["username"] for r in con.execute("SELECT username FROM users ORDER BY username")]
 
 
+def users_detail() -> list[dict]:
+    """Para la página de administración (sin contraseñas, claro)."""
+    with db.tx() as con:
+        rows = con.execute("""
+            SELECT u.username, u.created, u.is_admin, u.must_change,
+                   (SELECT COUNT(*) FROM boards b WHERE b.owner = u.username) AS boards
+              FROM users u ORDER BY u.username""").fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_user(username: str | None) -> dict | None:
+    if not username:
+        return None
+    with db.tx() as con:
+        row = con.execute("SELECT username, is_admin, must_change FROM users WHERE username = ?",
+                          (username,)).fetchone()
+    return dict(row) if row else None
+
+
+def is_admin(username: str | None) -> bool:
+    user = get_user(username)
+    return bool(user and user["is_admin"])
+
+
+def set_admin(username: str, admin: bool) -> None:
+    with db.tx() as con:
+        if not admin and con.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1 AND username != ?",
+                                     (username,)).fetchone()[0] == 0:
+            raise AuthError("Tiene que quedar al menos un administrador.")
+        if not con.execute("UPDATE users SET is_admin = ? WHERE username = ?",
+                           (int(admin), username)).rowcount:
+            raise AuthError(f"No existe el usuario «{username}».")
+
+
+# --- Registro --------------------------------------------------------------------
+
+def max_users() -> int:
+    try:
+        return int(os.environ.get("TORRE_MAX_USERS", "50"))
+    except ValueError:
+        return 50
+
+
+def registration_open() -> bool:
+    return db.get_setting("registration", "open") == "open"
+
+
+def set_registration(open_: bool) -> None:
+    db.set_setting("registration", "open" if open_ else "closed")
+
+
+def register(username: str, password: str, password2: str) -> str:
+    """Crea la cuenta de quien se registra desde la web."""
+    if not registration_open():
+        raise AuthError("El registro de cuentas nuevas está cerrado.")
+    if user_count() >= max_users():
+        raise AuthError("Se ha llegado al máximo de usuarios. Habla con el administrador.")
+    if password != password2:
+        raise AuthError("Las contraseñas no coinciden.")
+    return create_user(username, password)
+
+
 def user_count() -> int:
     with db.tx() as con:
         return con.execute("SELECT COUNT(*) FROM users").fetchone()[0]
 
 
 def create_user(username: str, password: str) -> str:
+    """Crea un usuario. El primero de todos es administrador."""
     username = normalize_username(username)
     check_new_password(username, password)
+    hashed = hash_password(password)
     with db.tx() as con:
         if con.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
             raise AuthError(f"El usuario «{username}» ya existe.")
-        con.execute("INSERT INTO users (username, password) VALUES (?, ?)",
-                    (username, hash_password(password)))
+        first = con.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0
+        con.execute("INSERT INTO users (username, password, is_admin) VALUES (?, ?, ?)",
+                    (username, hashed, int(first)))
     return username
 
 
-def set_password(username: str, password: str) -> None:
-    """Cambia la contraseña y cierra todas las sesiones abiertas de ese usuario."""
+def set_password(username: str, password: str, temporary: bool = False) -> None:
+    """Cambia la contraseña y cierra todas las sesiones abiertas de ese usuario.
+    «temporary»: tendrá que cambiarla nada más entrar."""
     username = normalize_username(username)
     check_new_password(username, password)
     with db.tx() as con:
-        cur = con.execute("UPDATE users SET password = ? WHERE username = ?",
-                          (hash_password(password), username))
+        cur = con.execute("UPDATE users SET password = ?, must_change = ? WHERE username = ?",
+                          (hash_password(password), int(temporary), username))
         if not cur.rowcount:
             raise AuthError(f"No existe el usuario «{username}».")
         con.execute("DELETE FROM sessions WHERE username = ?", (username,))
 
 
+def temporary_password(username: str) -> str:
+    """Contraseña temporal para quien olvidó la suya (la ve el administrador una
+    vez; al entrar con ella, el usuario tiene que poner una nueva)."""
+    password = secrets.token_urlsafe(9)   # 12 caracteres
+    set_password(username, password, temporary=True)
+    return password
+
+
 def delete_user(username: str) -> None:
+    """Borra la cuenta y sus tableros (los que le compartieron siguen siendo de otros)."""
+    username = username.strip().lower()
     with db.tx() as con:
-        if not con.execute("DELETE FROM users WHERE username = ?", (username.strip().lower(),)).rowcount:
+        row = con.execute("SELECT is_admin FROM users WHERE username = ?", (username,)).fetchone()
+        if row is None:
             raise AuthError(f"No existe el usuario «{username}».")
+        if row["is_admin"] and con.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1").fetchone()[0] == 1:
+            raise AuthError("No se puede borrar al único administrador.")
+        con.execute("DELETE FROM users WHERE username = ?", (username,))
 
 
 def authenticate(username: str, password: str) -> str | None:
@@ -210,3 +298,5 @@ class Throttle:
 
 
 throttle = Throttle()
+# Altas desde una misma IP: como mucho 3 por hora
+signups = Throttle(per_ip=3, per_user=10 ** 9, window=60 * 60)

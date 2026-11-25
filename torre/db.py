@@ -6,6 +6,11 @@ estas funciones. Cada función abre su propia conexión y la cierra al acabar.
 Orden: listas y tarjetas tienen «position» (0, 1, 2…) dentro de su tablero o
 lista. Lo archivado conserva su fila pero no cuenta para el orden; al
 restaurarlo vuelve al final.
+
+Varios usuarios (solo en un servidor, con TORRE_AUTH=1): cada tablero tiene
+un dueño («owner») y puede compartirse con otros usuarios («board_members»),
+que pueden editar su contenido. En el portátil no hay usuarios: «owner» queda
+vacío y las funciones se llaman sin «user» (sin restricciones).
 """
 from __future__ import annotations
 
@@ -31,7 +36,8 @@ CREATE TABLE IF NOT EXISTS boards (
     name     TEXT NOT NULL,
     color    TEXT NOT NULL DEFAULT 'blue',
     archived INTEGER NOT NULL DEFAULT 0,
-    created  TEXT NOT NULL DEFAULT (datetime('now'))
+    created  TEXT NOT NULL DEFAULT (datetime('now')),
+    owner    TEXT REFERENCES users(username) ON DELETE CASCADE ON UPDATE CASCADE
 );
 CREATE TABLE IF NOT EXISTS lists (
     id       INTEGER PRIMARY KEY,
@@ -72,8 +78,17 @@ CREATE TABLE IF NOT EXISTS items (
 CREATE TABLE IF NOT EXISTS users (
     username TEXT PRIMARY KEY,
     password TEXT NOT NULL,
-    created  TEXT NOT NULL DEFAULT (datetime('now'))
+    created  TEXT NOT NULL DEFAULT (datetime('now')),
+    is_admin INTEGER NOT NULL DEFAULT 0,
+    must_change INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS board_members (
+    board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+    username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE ON UPDATE CASCADE,
+    added    TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (board_id, username)
+);
+
 CREATE TABLE IF NOT EXISTS sessions (
     token    TEXT PRIMARY KEY,
     username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -87,7 +102,35 @@ CREATE TABLE IF NOT EXISTS settings (
 CREATE INDEX IF NOT EXISTS lists_board ON lists(board_id);
 CREATE INDEX IF NOT EXISTS cards_list ON cards(list_id);
 CREATE INDEX IF NOT EXISTS items_card ON items(card_id);
+CREATE INDEX IF NOT EXISTS members_user ON board_members(username);
 """
+
+
+def _columns(con, table: str) -> set[str]:
+    return {r[1] for r in con.execute(f"PRAGMA table_info({table})")}
+
+
+def _migrate(con) -> None:
+    """Pone al día una base de datos de una versión anterior de Torre."""
+    if "owner" not in _columns(con, "boards"):
+        con.execute("ALTER TABLE boards ADD COLUMN owner TEXT "
+                    "REFERENCES users(username) ON DELETE CASCADE ON UPDATE CASCADE")
+    if "is_admin" not in _columns(con, "users"):
+        con.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")
+    if "must_change" not in _columns(con, "users"):
+        con.execute("ALTER TABLE users ADD COLUMN must_change INTEGER NOT NULL DEFAULT 0")
+    con.execute("CREATE INDEX IF NOT EXISTS boards_owner ON boards(owner)")
+    # Si hay usuarios pero ningún administrador (Torre de antes de los permisos),
+    # el usuario más antiguo pasa a serlo y se queda los tableros sin dueño
+    if not con.execute("SELECT 1 FROM users WHERE is_admin = 1").fetchone():
+        first = con.execute("SELECT username FROM users ORDER BY created, username LIMIT 1").fetchone()
+        if first:
+            con.execute("UPDATE users SET is_admin = 1 WHERE username = ?", (first[0],))
+    admin = con.execute("SELECT username FROM users WHERE is_admin = 1 "
+                        "ORDER BY created, username LIMIT 1").fetchone()
+    if admin:
+        con.execute("UPDATE boards SET owner = ? WHERE owner IS NULL", (admin[0],))
+    con.commit()
 
 
 class NotFound(Exception):
@@ -113,6 +156,7 @@ def tx():
         if str(path) not in _ready or not path.exists() or not path.stat().st_size:
             con.execute("PRAGMA journal_mode = WAL")
             con.executescript(SCHEMA)
+            _migrate(con)
             _ready.add(str(path))
         with con:
             yield con
@@ -167,13 +211,14 @@ def set_setting(key: str, value: str) -> None:
                     "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value))
 
 
-def get_theme() -> str:
-    theme = get_setting("theme", "auto")
+def get_theme(user: str | None = None) -> str:
+    """El tema de cada usuario (en el portátil, uno solo para todo)."""
+    theme = get_setting(f"theme:{user}" if user else "theme", "auto")
     return theme if theme in THEMES else "auto"
 
 
-def set_theme(theme: str) -> None:
-    set_setting("theme", theme)
+def set_theme(theme: str, user: str | None = None) -> None:
+    set_setting(f"theme:{user}" if user else "theme", theme)
 
 
 def reminders_enabled() -> bool:
@@ -195,20 +240,88 @@ def due_cards(until: str) -> list[dict]:
 
 # --- Tableros ------------------------------------------------------------------
 
-def list_boards() -> list[dict]:
+# Condición SQL «el usuario :user puede ver el tablero b» (dueño o miembro)
+VISIBLE = """(b.owner = :user OR EXISTS (SELECT 1 FROM board_members m
+                                         WHERE m.board_id = b.id AND m.username = :user))"""
+
+
+def list_boards(user: str | None = None) -> list[dict]:
+    """Tableros que ve el usuario (todos si no hay usuario), con su papel:
+    «owner» si es suyo, «member» si se lo han compartido."""
     with tx() as con:
-        rows = con.execute("""
-            SELECT b.id, b.name, b.color, b.archived,
+        rows = con.execute(f"""
+            SELECT b.id, b.name, b.color, b.archived, b.owner,
+                   CASE WHEN :user IS NULL OR b.owner = :user THEN 'owner' ELSE 'member' END AS role,
+                   (SELECT COUNT(*) FROM board_members m WHERE m.board_id = b.id) AS members,
                    (SELECT COUNT(*) FROM cards c JOIN lists l ON l.id = c.list_id
                      WHERE l.board_id = b.id AND c.archived = 0 AND l.archived = 0) AS cards
-              FROM boards b ORDER BY b.name COLLATE NOCASE, b.id""").fetchall()
+              FROM boards b
+             WHERE :user IS NULL OR {VISIBLE}
+             ORDER BY b.name COLLATE NOCASE, b.id""", {"user": user}).fetchall()
     return [dict(r) for r in rows]
 
 
-def create_board(name: str, color: str = "blue") -> int:
+def create_board(name: str, color: str = "blue", owner: str | None = None) -> int:
     with tx() as con:
-        return con.execute("INSERT INTO boards (name, color) VALUES (?, ?)",
-                           (name, color)).lastrowid
+        return con.execute("INSERT INTO boards (name, color, owner) VALUES (?, ?, ?)",
+                           (name, color, owner)).lastrowid
+
+
+def role(board_id: int, user: str | None) -> str:
+    """«owner» o «member». Si el usuario no puede ver el tablero (o no existe),
+    NotFound: así no se puede saber qué tableros de otros existen."""
+    with tx() as con:
+        row = _one(con, "SELECT owner FROM boards WHERE id = ?", board_id)
+        if user is None or row["owner"] == user:
+            return "owner"
+        if con.execute("SELECT 1 FROM board_members WHERE board_id = ? AND username = ?",
+                       (board_id, user)).fetchone():
+            return "member"
+    raise NotFound
+
+
+_PARENT = {
+    "lists": "SELECT board_id FROM lists WHERE id = ?",
+    "cards": "SELECT l.board_id FROM cards c JOIN lists l ON l.id = c.list_id WHERE c.id = ?",
+    "labels": "SELECT board_id FROM labels WHERE id = ?",
+    "items": """SELECT l.board_id FROM items i JOIN cards c ON c.id = i.card_id
+                  JOIN lists l ON l.id = c.list_id WHERE i.id = ?""",
+}
+
+
+def board_of(kind: str, row_id: int) -> int:
+    """Tablero al que pertenece una lista, tarjeta, etiqueta o elemento."""
+    with tx() as con:
+        return _one(con, _PARENT[kind], row_id)[0]
+
+
+def members(board_id: int) -> dict:
+    with tx() as con:
+        owner = _one(con, "SELECT owner FROM boards WHERE id = ?", board_id)["owner"]
+        names = [r[0] for r in con.execute(
+            "SELECT username FROM board_members WHERE board_id = ? ORDER BY username", (board_id,))]
+    return {"owner": owner, "members": names}
+
+
+class NotAllowed(ValueError):
+    """Operación no permitida (el mensaje se muestra tal cual)."""
+
+
+def add_member(board_id: int, username: str) -> None:
+    with tx() as con:
+        owner = _one(con, "SELECT owner FROM boards WHERE id = ?", board_id)["owner"]
+        if not con.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
+            raise NotAllowed(f"No existe el usuario «{username}».")
+        if username == owner:
+            raise NotAllowed("Es el dueño del tablero: ya tiene acceso.")
+        con.execute("INSERT OR IGNORE INTO board_members (board_id, username) VALUES (?, ?)",
+                    (board_id, username))
+
+
+def remove_member(board_id: int, username: str) -> None:
+    with tx() as con:
+        _changed(con.execute("DELETE FROM board_members WHERE board_id = ? AND username = ?",
+                             (board_id, username)))
 
 
 def update_board(board_id: int, **fields) -> None:
@@ -223,13 +336,13 @@ def delete_board(board_id: int) -> None:
 
 def board_name(board_id: int) -> dict:
     with tx() as con:
-        return dict(_one(con, "SELECT id, name, color, archived FROM boards WHERE id = ?", board_id))
+        return dict(_one(con, "SELECT id, name, color, archived, owner FROM boards WHERE id = ?", board_id))
 
 
 def get_board(board_id: int) -> dict:
     """El tablero entero, listo para pintarlo: listas, tarjetas y etiquetas."""
     with tx() as con:
-        board = dict(_one(con, "SELECT id, name, color, archived FROM boards WHERE id = ?", board_id))
+        board = dict(_one(con, "SELECT id, name, color, archived, owner FROM boards WHERE id = ?", board_id))
         board["labels"] = [dict(r) for r in con.execute(
             "SELECT id, name, color FROM labels WHERE board_id = ? ORDER BY id", (board_id,))]
         lists = [dict(r) | {"cards": []} for r in con.execute(
@@ -417,18 +530,20 @@ def delete_item(item_id: int) -> None:
 
 # --- Búsqueda ------------------------------------------------------------------
 
-def search(query: str, limit: int = 20) -> list[dict]:
-    """Tarjetas (no archivadas) cuyo título o descripción contiene el texto."""
+def search(query: str, limit: int = 20, user: str | None = None) -> list[dict]:
+    """Tarjetas (no archivadas) cuyo título o descripción contiene el texto,
+    solo de los tableros que ve el usuario."""
     like = "%" + query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
     with tx() as con:
-        rows = con.execute("""
+        rows = con.execute(f"""
             SELECT c.id, c.title, l.name AS list_name, b.id AS board_id, b.name AS board_name,
                    b.color AS board_color
               FROM cards c JOIN lists l ON l.id = c.list_id JOIN boards b ON b.id = l.board_id
              WHERE c.archived = 0 AND l.archived = 0 AND b.archived = 0
-               AND (c.title LIKE ? ESCAPE '\\' OR c.description LIKE ? ESCAPE '\\')
-             ORDER BY c.title LIKE ? ESCAPE '\\' DESC, c.title COLLATE NOCASE LIMIT ?""",
-            (like, like, like, limit)).fetchall()
+               AND (:user IS NULL OR {VISIBLE})
+               AND (c.title LIKE :like ESCAPE '\\' OR c.description LIKE :like ESCAPE '\\')
+             ORDER BY c.title LIKE :like ESCAPE '\\' DESC, c.title COLLATE NOCASE LIMIT :limit""",
+            {"like": like, "limit": limit, "user": user}).fetchall()
     return [dict(r) for r in rows]
 
 

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Administración · Torre{% endblock %}
+{% block main %}
+<section class="home">
+  <h1>Administración</h1>
+
+  <h2>Registro</h2>
+  <div class="settings">
+    <div class="setting">
+      <label class="switch-row">
+        <input type="checkbox" id="registration" {{ "checked" if registration }}>
+        <span><strong>Cualquiera puede crearse una cuenta</strong>
+          <span class="hint">Desde «Crear cuenta» en la página de entrada. Máximo {{ max_users }} usuarios y 3 cuentas
+            por conexión y hora. Ciérralo cuando ya estén todos tus compañeros.</span></span>
+      </label>
+    </div>
+  </div>
+
+  <h2>Usuarios ({{ users | length }})</h2>
+  <div class="table-wrap">
+    <table class="users">
+      <thead><tr><th>Usuario</th><th>Alta</th><th>Tableros</th><th>Admin</th><th></th></tr></thead>
+      <tbody>
+        {% for u in users %}
+        <tr data-user="{{ u.username }}">
+          <td><strong>{{ u.username }}</strong>{% if u.username == request.state.user %} <small>(tú)</small>{% endif %}
+            {% if u.must_change %}<br><small class="warn-text">con contraseña temporal</small>{% endif %}</td>
+          <td>{{ u.created[:10] }}</td>
+          <td>{{ u.boards }}</td>
+          <td><input type="checkbox" class="admin-toggle" {{ "checked" if u.is_admin }}
+                     {{ "disabled" if u.username == request.state.user }} aria-label="Administrador"></td>
+          <td class="actions">
+            {% if u.username != request.state.user %}
+            <button class="btn small" data-reset>Contraseña temporal</button>
+            <button class="btn small danger" data-delete data-boards="{{ u.boards }}">Borrar</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="hint">Las contraseñas se guardan cifradas: aquí no se pueden ver. Si alguien olvida la suya, dale una
+    temporal: tendrá que cambiarla al entrar.</p>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ static('admin.js') }}"></script>{% endblock %}

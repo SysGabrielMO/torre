@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Tu cuenta · Torre{% endblock %}
+{% block main %}
+<section class="home narrow">
+  <h1>Tu cuenta: {{ request.state.user }}</h1>
+  {% if must_change %}
+  <p class="notice warn">El administrador te ha puesto una contraseña temporal. Elige una nueva para seguir.</p>
+  {% endif %}
+  {% if request.query_params.get("hecho") %}<p class="notice ok">Contraseña cambiada. Se han cerrado tus sesiones en otros dispositivos.</p>{% endif %}
+
+  <h2>Cambiar contraseña</h2>
+  <form class="settings form-card" method="post" action="/cuenta">
+    {% if error %}<p class="login-error" role="alert">{{ error }}</p>{% endif %}
+    <label>Contraseña actual
+      <input name="current" type="password" autocomplete="current-password" required>
+    </label>
+    <label>Nueva contraseña
+      <input name="new" type="password" autocomplete="new-password" required minlength="{{ min_password }}">
+      <small>Al menos {{ min_password }} caracteres.</small>
+    </label>
+    <label>Repite la nueva
+      <input name="new2" type="password" autocomplete="new-password" required minlength="{{ min_password }}">
+    </label>
+    <button class="btn primary">Cambiar contraseña</button>
+  </form>
+  <p class="hint">Tu contraseña se guarda cifrada (solo su huella): nadie puede leerla, tampoco el administrador.
+    Si la olvidas, el administrador puede darte una temporal.</p>
+</section>
+{% endblock %}

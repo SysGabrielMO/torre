@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Crear cuenta · Torre{% endblock %}
+{% block topbar %}{% endblock %}
+{% block common_js %}{% endblock %}
+{% block main %}
+<section class="login">
+  <form class="login-box" method="post" action="/registro" autocomplete="on">
+    <img src="{{ static('icon.svg') }}" alt="" width="56" height="56">
+    <h1>Crear cuenta</h1>
+    {% if not open %}
+    <p class="login-error">El registro de cuentas nuevas está cerrado. Pide al administrador que lo abra.</p>
+    <p class="login-alt"><a href="/login">Volver a entrar</a></p>
+    {% else %}
+    {% if error %}<p class="login-error" role="alert">{{ error }}</p>{% endif %}
+    <label>Usuario
+      <input name="username" value="{{ username }}" autocomplete="username" autocapitalize="none" spellcheck="false"
+             required minlength="2" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9._\-]{1,31}" autofocus
+             title="De 2 a 32 caracteres: letras, números, punto, guion o guion bajo">
+      <small>Letras, números, punto o guion. Es como te verán los demás.</small>
+    </label>
+    <label>Contraseña
+      <input name="password" type="password" autocomplete="new-password" required minlength="{{ min_password }}">
+      <small>Al menos {{ min_password }} caracteres. Se guarda cifrada: nadie puede verla, ni el administrador.</small>
+    </label>
+    <label>Repite la contraseña
+      <input name="password2" type="password" autocomplete="new-password" required minlength="{{ min_password }}">
+    </label>
+    {# Campo trampa contra bots: las personas no lo ven #}
+    <div class="trap" aria-hidden="true">
+      <label>Web <input name="website" tabindex="-1" autocomplete="off"></label>
+    </div>
+    <button class="btn primary">Crear cuenta</button>
+    <p class="login-alt">¿Ya tienes cuenta? <a href="/login">Entrar</a></p>
+    {% endif %}
+  </form>
+</section>
+{% endblock %}
