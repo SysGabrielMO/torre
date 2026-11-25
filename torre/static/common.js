@@ -14,6 +14,11 @@ async function api(method, url, body) {
     toast("No se pudo conectar con Torre. ¿Sigue abierto el servidor?", { error: true });
     throw e;
   }
+  if (res.status === 401) {
+    // Sesión caducada o cerrada en otra pestaña (Torre en un servidor)
+    location.href = "/login?next=" + encodeURIComponent(location.pathname + location.search + location.hash);
+    throw new Error("Sesión caducada");
+  }
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     let msg = data && data.detail;

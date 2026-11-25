@@ -36,6 +36,7 @@
       </div>
       <button class="btn" id="backup-now">Hacer copia ahora</button>
     </div>
+    {% if reminders_available %}
     <div class="setting">
       <label class="switch-row">
         <input type="checkbox" id="reminders" {{ "checked" if reminders }}>
@@ -49,6 +50,7 @@
       </label>
       <button class="btn" id="test-reminder">Probar aviso</button>
     </div>
+    {% endif %}
   </div>
 
   {% if archived %}

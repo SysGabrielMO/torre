@@ -29,12 +29,12 @@ document.getElementById("backup-now").addEventListener("click", async e => {
   } finally { e.target.disabled = false; }
 });
 
-document.getElementById("reminders").addEventListener("change", async e => {
+document.getElementById("reminders")?.addEventListener("change", async e => {
   await api("PUT", "/api/settings/reminders", { enabled: e.target.checked });
   toast(e.target.checked ? "Avisos activados" : "Avisos desactivados", { ms: 1500 });
 });
 
-document.getElementById("test-reminder").addEventListener("click", async () => {
+document.getElementById("test-reminder")?.addEventListener("click", async () => {
   const r = await api("POST", "/api/reminders/test");
   toast(r.shown === "pending" ? "Aviso mostrado con tus tarjetas pendientes" : "Aviso de prueba mostrado");
 });

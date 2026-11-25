@@ -149,6 +149,56 @@ cd ~/torre && rm -f data/torre.db-wal data/torre.db-shm && cp ~/.local/share/tor
 Cada copia es un fichero SQLite completo; para guardarla en otro sitio (un
 USB, la nube) basta con copiar el fichero.
 
+## Montarlo en un servidor (HTTPS y contraseña)
+
+Torre también puede ir en un servidor, con acceso por Internet. Ahí funciona
+como web (sin ventana ni avisos del escritorio) y **pide usuario y
+contraseña**. La imagen de Docker ya viene preparada para eso:
+
+- Contraseñas guardadas con scrypt, nunca en claro. Sin registro desde la web:
+  los usuarios se crean con un comando.
+- Sesiones de 30 días en una cookie `HttpOnly` y `Secure`, que se pueden cerrar
+  con «Salir». Cambiar la contraseña cierra todas las sesiones de ese usuario.
+- Tras 5 intentos fallidos desde una IP (o 10 contra un mismo usuario) en 15
+  minutos, se bloquea 15 minutos. Los fallos quedan en el log del contenedor.
+- Solo responde a los nombres de `TORRE_ALLOWED_HOSTS` y rechaza escrituras
+  que vengan de otras webs.
+- Copia de seguridad diaria dentro del volumen (`/data/copias`).
+
+Delante hace falta un proxy con HTTPS. Con Caddy, que saca el certificado solo:
+
+```
+torre.midominio.com {
+	reverse_proxy torre:8000
+}
+```
+
+Y en `docker-compose.yml` (el puerto 8000 no se publica: solo Caddy llega a él):
+
+```yaml
+  torre:
+    build: ./torre            # git clone https://github.com/SysGabrielMO/torre.git torre
+    restart: unless-stopped
+    environment:
+      - TORRE_ALLOWED_HOSTS=torre.midominio.com
+      - TZ=Europe/Madrid
+    volumes:
+      - torre_data:/data
+```
+
+Arráncalo y crea tu usuario:
+
+```bash
+docker compose up -d --build torre
+```
+
+```bash
+docker compose exec torre python -m torre.users añadir TU_USUARIO
+```
+
+Otros: `torre.users contraseña NOMBRE`, `torre.users lista` y `torre.users borrar NOMBRE`.
+Para actualizar: `git pull` en la carpeta `torre` y otra vez `docker compose up -d --build torre`.
+
 ## Cómo está hecho
 
 | Parte | Fichero |
@@ -162,6 +212,8 @@ USB, la nube) basta con copiar el fichero.
 | Aviso diario con Torre cerrado (lo lanza systemd) | `torre/daily.py` |
 | ¿Está la ventana abierta? | `torre/instance.py` |
 | Importar de Trello | `torre/trello.py` |
+| Usuarios, contraseñas y sesiones (servidor) | `torre/auth.py`, `torre/users.py` |
+| Imagen para servidor | `Dockerfile` |
 | Ventana de escritorio (PySide6 / Qt WebEngine) | `torre/desktop.py` |
 | Lanzadores | `torre-app`, `run.sh`, `scripts/` |
 

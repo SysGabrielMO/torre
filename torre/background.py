@@ -142,6 +142,8 @@ def pending_reminder(today: date | None = None, force: bool = False) -> tuple[st
     desactivados, ya se avisó hoy o no hay nada pendiente. «force» ignora lo
     de desactivados y ya avisado (para «Probar aviso»)."""
     today = today or date.today()
+    if os.environ.get("TORRE_NO_REMINDERS"):
+        return None   # en un servidor no hay escritorio donde avisar
     if not force and (not db.reminders_enabled()
                       or db.get_setting("reminded_on") == today.isoformat()):
         return None

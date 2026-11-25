@@ -69,6 +69,17 @@ CREATE TABLE IF NOT EXISTS items (
     done     INTEGER NOT NULL DEFAULT 0,
     position INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS users (
+    username TEXT PRIMARY KEY,
+    password TEXT NOT NULL,
+    created  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS sessions (
+    token    TEXT PRIMARY KEY,
+    username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE ON UPDATE CASCADE,
+    created  TEXT NOT NULL DEFAULT (datetime('now')),
+    expires  TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Entrar · Torre{% endblock %}
+{% block topbar %}{% endblock %}
+{% block common_js %}{% endblock %}
+{% block main %}
+<section class="login">
+  <form class="login-box" method="post" action="/login">
+    <img src="{{ static('icon.svg') }}" alt="" width="56" height="56">
+    <h1>Torre</h1>
+    {% if no_users %}
+    <p class="login-error">Todavía no hay ningún usuario. Créalo en el servidor con:</p>
+    <pre>docker compose exec torre python -m torre.users añadir TU_USUARIO</pre>
+    {% else %}
+    {% if error %}<p class="login-error" role="alert">{{ error }}</p>{% endif %}
+    <label>Usuario
+      <input name="username" value="{{ username }}" autocomplete="username" autocapitalize="none"
+             spellcheck="false" required {{ "autofocus" if not username }}>
+    </label>
+    <label>Contraseña
+      <input name="password" type="password" autocomplete="current-password" required {{ "autofocus" if username }}>
+    </label>
+    <input type="hidden" name="next" value="{{ next }}">
+    <button class="btn primary">Entrar</button>
+    {% endif %}
+  </form>
+</section>
+{% endblock %}
